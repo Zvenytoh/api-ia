@@ -318,8 +318,18 @@ def compare():
         return jsonify({"erreur": "Champ 'texte' requis"}), 400
 
     texte = data["texte"]
-        "confiance":  round(proba_local, 4),
-    }
+    if len(texte.strip()) < 3:
+        return jsonify({"erreur": "Texte trop court (min 3 caractères)"}), 400
+
+    try:
+        pred = pipeline.predict([texte])[0]
+        proba = float(max(pipeline.predict_proba([texte])[0]))
+        sklearn_result = {
+            "prediction": pred,
+            "confiance": round(proba, 4),
+        }
+    except Exception as e:
+        return jsonify({"erreur": str(e)}), 500
 
     if not HF_TOKEN:
         hf_result  = {"disponible": False, "erreur": "HF_TOKEN non configuré"}
