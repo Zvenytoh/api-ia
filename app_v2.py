@@ -42,9 +42,6 @@ swagger = Swagger(app, config=swagger_config, template=swagger_template)
 MODEL_PATH = os.environ.get("MODEL_PATH", "modele_sentiment.pkl")
 pipeline   = joblib.load(MODEL_PATH)
 
-# ---------------------------------------------------------------
-# HuggingFace Inference API
-# ---------------------------------------------------------------
 HF_TOKEN  = os.environ.get("HF_TOKEN", "")
 HF_MODEL  = "cardiffnlp/twitter-roberta-base-sentiment"
 HF_URL    = f"https://router.huggingface.co/hf-inference/models/{HF_MODEL}"
@@ -55,7 +52,6 @@ LABEL_MAP = {
 
 
 def _appel_hf(texte: str) -> dict:
-    """Appel interne à l'API HuggingFace (sans retry — géré par la route)."""
     r = req.post(
         HF_URL,
         headers={"Authorization": f"Bearer {HF_TOKEN}"},
@@ -73,10 +69,6 @@ def _appel_hf(texte: str) -> dict:
         "confiance":  round(best["score"], 4),
     }
 
-
-# ===============================================================
-# Routes
-# ===============================================================
 
 @app.route("/health", methods=["GET"])
 def health():
@@ -225,12 +217,9 @@ def analyse_hf():
     except req.Timeout:
         return jsonify({"erreur": "Timeout API HuggingFace"}), 504
     except Exception as e:
-        return jsonify({"erreur": str(e)}), 502
+         return jsonify({"erreur": str(e)}), 502
 
 
-# ---------------------------------------------------------------
-# Exercice 2 & 3 — Route /compare avec documentation Swagger
-# ---------------------------------------------------------------
 
 @app.route("/compare", methods=["POST"])
 def compare():
@@ -329,18 +318,9 @@ def compare():
         return jsonify({"erreur": "Champ 'texte' requis"}), 400
 
     texte = data["texte"]
-    if len(texte.strip()) < 3:
-        return jsonify({"erreur": "Texte trop court (min 3 caractères)"}), 400
-
-    # --- Prédiction locale (toujours disponible) ---
-    pred_local  = pipeline.predict([texte])[0]
-    proba_local = float(max(pipeline.predict_proba([texte])[0]))
-    sklearn_result = {
-        "prediction": pred_local,
         "confiance":  round(proba_local, 4),
     }
 
-    # --- Prédiction HuggingFace (optionnelle — dégradation gracieuse) ---
     if not HF_TOKEN:
         hf_result  = {"disponible": False, "erreur": "HF_TOKEN non configuré"}
         http_code  = 502
@@ -356,7 +336,6 @@ def compare():
             hf_result = {"disponible": False, "erreur": str(e)}
             http_code = 502
 
-    # accord = True si les deux sources sont disponibles et concordent
     accord = (
         hf_result.get("disponible", False)
         and hf_result.get("prediction") == sklearn_result["prediction"]
